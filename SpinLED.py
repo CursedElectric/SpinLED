@@ -35,7 +35,6 @@ dampening_factor = 0.9 #mm damp. this might not work
 tap_size = 299 #LEGACY. still controls some effects. do not make higher than striplength / 2
 tapsizemodifier = 1 #tap size
 tap_speed = 1 #how fast tap reaches full lenght
-tap_dur = 2 #duration of tap
 match_size = 20
 brightmod = 5
 delay = 1
@@ -116,8 +115,8 @@ def update_colors():
     beat_boost = float(config.get('Other Effects', 'Beat Boost', fallback = 20))
     spin_animation_speed = float(config.get('Other Effects', 'Spin Animation Speed', fallback = 20)) / 20
     max_brightness = float(config.get('Other Effects', 'Max Brightness' , fallback = 200))
-    tapsizemodifier = float(config.get('Other Effects', 'Tap Size Modifier' , fallback = 1)) / 10
-    tap_speed = float(config.get('Other Effects', 'Tap Speed' , fallback = 2)) / 10
+    tapsizemodifier = float(config.get('Other Effects', 'Tap Size Modifier' , fallback = 1)) / 50
+    tap_speed = float(config.get('Other Effects', 'Tap Speed' , fallback = 50)) / 5
     brightmod = float(config.get('Other Effects', 'Brightness Modifier' , fallback = 3)) 
     delay = float(config.get('Other Effects', 'Delay' , fallback = 0)) / 8
     if left_spin_color != prevleft:
@@ -180,7 +179,7 @@ def on_press(key):
                 "start_index": 300,
                 "start_time": time.time(),
                 "effect_id": 3,
-                "effect_var": 23 #osc_freq
+                "effect_var": tap_speed #osc_freq
                 })
             print("tap hit")
         if key.char == '4':  # Check if '1' is pressed
@@ -188,7 +187,7 @@ def on_press(key):
                 "start_index": 300,
                 "start_time": time.time(),
                 "effect_id": 4,
-                "effect_var": 23 #osc_freq
+                "effect_var": tap_speed #osc_freq
                 })
             print("tap hit")
         if key.char == '5':  # Check if '1' is pressed
@@ -570,7 +569,7 @@ def tap_start():
                 "start_index": index,
                 "start_time": time.time(),
                 "effect_id": 3,
-                "effect_var": 20 #osc_freq
+                "effect_var": tap_speed #osc_freq
                 })
             #print(note)
             scratch = False
@@ -591,7 +590,7 @@ def tap_start():
                 "start_index": index,
                 "start_time": time.time(),
                 "effect_id": 4,
-                "effect_var": 20 #osc_freq 
+                "effect_var": tap_speed #osc_freq 
                 })
             #print(note)
             scratch = False
@@ -826,15 +825,15 @@ def update_effects():
 
 
             if effect["effect_id"] == 3:  # BLUE TAP
-                inverse = tap_dur - elapsed_time # timer
-
+                #made inverse mechanic that starts at 1 when fade out is trigger and ends at zero. wait
+                fade_out_duration = (tap_speed / 5)  # the same duration as your condition
                 #logic for sine wave 
                 osc_freq = effect["effect_var"]
                 effect["effect_var"] = effect["effect_var"] / tap_speed
                 x_values = np.arange(-tap_size, tap_size, 1) #size of tap
                 y_values = [oscillating_parabola(x, osc_damp, osc_freq) for x in x_values]
                 coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
-                if current_time - effect["start_time"] <= 1:
+                if current_time - effect["start_time"] <= (tap_speed / 5):
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         
                         #getting old colors
@@ -845,12 +844,15 @@ def update_effects():
                         brightness = get_y_coords_for_index(iterate)
                         r, g, b = blue_tap
                         r, g, b = [int(c * brightness / 255) for c in blue_tap]
-                        r = max(x, x +(r ** 1 - abs((i - start_index) * tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
-                        g = max(y, y +(g ** 1 - abs((i - start_index) * tapsizemodifier))/ brightmod)
-                        b = max(z, z +(b ** 1 - abs((i - start_index) * tapsizemodifier))/ brightmod)
+                        r = max(x, x +(r ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
+                        g = max(y, y +(g ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        b = max(z, z +(b ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         
                         colors[i] = (r, g, b)
-                elif current_time - effect["start_time"] <= tap_dur:
+                elif current_time - effect["start_time"] <= (tap_speed / 5) * 2:
+                    inverse = elapsed_time - fade_out_duration
+                    inverse = max(0.0, 1.0 - (inverse / fade_out_duration))
+                    print(inverse)
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         #getting old colors
                         x, y, z = colors[i][0], colors[i][1], colors [i][2]
@@ -859,17 +861,18 @@ def update_effects():
                         brightness = get_y_coords_for_index(iterate)
                         #logic for fadeout effect
                         r, g, b = [int(c * brightness / 255) for c in blue_tap]
-                        r = max(x, x +(r ** inverse - abs((i - start_index) * tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
-                        g = max(y, y +(g ** inverse - abs((i - start_index) * tapsizemodifier))/ brightmod)
-                        b = max(z, z +(b ** inverse - abs((i - start_index) * tapsizemodifier))/ brightmod)
+                        r = max(x, x +(r ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
+                        g = max(y, y +(g ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        b = max(z, z +(b ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         #send colors to array
                         colors[i] = (r, g, b)
 
-                if current_time - effect["start_time"] > tap_dur:
+                elif current_time - effect["start_time"] <= (tap_speed / 5) * 3:
+                    print("removed")
                     effects_to_remove.append(effect)
 
             if effect["effect_id"] == 4:  # Red TAP
-                inverse = max(tap_dur - elapsed_time, 0.001) # timer
+                inverse = max((tap_dur / 1) - elapsed_time, 0.001) # timer
 
                 #logic for sine wave 
                 osc_freq = effect["effect_var"]
@@ -877,7 +880,7 @@ def update_effects():
                 x_values = np.arange(-tap_size, tap_size, 1) #size of tap
                 y_values = [oscillating_parabola(x, osc_damp, osc_freq) for x in x_values]
                 coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
-                if current_time - effect["start_time"] <= 1:
+                if current_time - effect["start_time"] <= (tap_speed / 50):
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         
                         #getting old colors
@@ -888,9 +891,9 @@ def update_effects():
                         brightness = get_y_coords_for_index(iterate)
                         r, g, b = red_tap
                         r, g, b = [int(c * brightness / 255) for c in red_tap]
-                        r = max(x, x +(r ** 1 - abs((i - start_index) * tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
-                        g = max(y, y +(g ** 1 - abs((i - start_index) * tapsizemodifier))/ brightmod)
-                        b = max(z, z +(b ** 1 - abs((i - start_index) * tapsizemodifier))/ brightmod)
+                        r = max(x, x +(r ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
+                        g = max(y, y +(g ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        b = max(z, z +(b ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         
                         colors[i] = (r, g, b)
                 elif current_time - effect["start_time"] <= tap_dur:
@@ -902,9 +905,9 @@ def update_effects():
                         brightness = get_y_coords_for_index(iterate)
                         #logic for fadeout effect
                         r, g, b = [int(c * brightness / 255) for c in red_tap]
-                        r = max(x, x +(r ** inverse - abs((i - start_index) * tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
-                        g = max(y, y +(g ** inverse - abs((i - start_index) * tapsizemodifier))/ brightmod)
-                        b = max(z, z +(b ** inverse - abs((i - start_index) * tapsizemodifier))/ brightmod)
+                        r = max(x, x +(r ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
+                        g = max(y, y +(g ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        b = max(z, z +(b ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         #send colors to array
                         colors[i] = (r, g, b)
 

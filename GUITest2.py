@@ -127,6 +127,12 @@ def optionmenu_callback(choice):
         color = "#{0:02x}{1:02x}{2:02x}".format(r, g, b)
         button.configure(fg_color=color)
 
+    #set custom value in txt file for main program to use
+    config.set("Other Effects", "Custom", str(customnumbervalue))
+    with open('config.ini', 'w') as configfile:
+        config.write(configfile)
+        print("srote")
+
     print(r, g, b)
     return (color)
 
@@ -219,7 +225,7 @@ brightmod_value_label.grid(column=1, row=0, sticky=SW)
 
 tap_speed_slider = ctk.CTkSlider(
     master=root,
-    from_=10,
+    from_=1,
     to=100,
     variable=tap_speed,
     command=lambda value: (storevalue('Other Effects', 'Tap Speed', value), (update_slider("Tap Speed", value))),
@@ -248,7 +254,7 @@ tap_size_value_label.grid(column=1, row=4, sticky=SW)
 beat_boost_slider = ctk.CTkSlider(
     master=root,
     from_=1,
-    to=10,
+    to=50,
     variable=beat_boost,
     command=lambda value: (storevalue('Other Effects', 'Beat Boost', value), (update_slider("Beat Boost", value))),
     width=200)
