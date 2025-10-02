@@ -6,15 +6,35 @@ from CTkColorPicker import *
 from customtkinter import CTk, CTkOptionMenu, CTkLabel
 from PIL import ImageColor
 import re
+import SpinLED
+import threading
+import serial.tools.list_ports
+
+
+customtkinter.set_appearance_mode("dark")
+customtkinter.set_default_color_theme("dark-blue")
+
+
+#STARTING ROOT
+ctk.set_default_color_theme("dark-blue")
+root = customtkinter.CTk()
+root.geometry("600x700")  # Increased size to accommodate new slider
+root.title("SpinLED")
+##
 
 config = configparser.ConfigParser()
 config.read('config.ini')
-root = ctk.CTk()
 customnumbervalue = customtkinter.StringVar(value="Custom 1")  # set initial value
 ##INITIALZING VALUES
 default_categories = ['Red Tap', 'Blue Tap', 'Left Spin', 'Right Spin', 'Scratch', 'Beat']
 default_rgb = {'R1': '100', 'G1': '100', 'B1': '100', 'R2': '100', 'G2': '100', 'B2': '100', 'R3': '100', 'G3': '100', 'B3': '100', 'R4': '100', 'G4': '100', 'B4': '100', 'R5': '100', 'G5': '100', 'B5': '100'}
 
+
+#we start the main loop as a thread here. this allows the user to simply open this GUI and the program will run alongside it
+threading.Thread(
+    target=SpinLED.start_main_loop,
+    daemon=True
+).start()
 
 customnumbervalue = 1
 
@@ -40,8 +60,18 @@ if 'Brightness Modifier' not in config['Other Effects']:
     config['Other Effects']['Brightness Modifier'] = '3'
 if 'Delay' not in config['Other Effects']:
     config['Other Effects']['Delay'] = '0'
-if 'Spin Animation Speed' in config['Other Effects']:
+if 'Spin Animation Speed' not in config['Other Effects']:
     config['Other Effects']['Spin Animation Speed'] = '50'
+if 'Led Strip Length' not in config['Other Effects']:
+    config['Other Effects']['Led Strip Length'] = '30'
+
+if 'Options' not in config:
+    config['Options'] = {}
+if 'Led Strip Length' not in config['Options']:
+    config['Options']['Led Strip Length'] = '30'
+if 'COM Port' not in config['Options']:
+    config['Options']['COM Port'] = '1'
+
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
 ##
@@ -68,16 +98,7 @@ delay = DoubleVar(value=get_config_value('Other Effects', 'Delay'))
 
 
 
-customtkinter.set_appearance_mode("dark")
-customtkinter.set_default_color_theme("dark-blue")
 
-
-#STARTING ROOT
-ctk.set_default_color_theme("dark-blue")
-root = customtkinter.CTk()
-root.geometry("900x800")  # Increased size to accommodate new slider
-root.title("SpinLED")
-##
 
 
 def write_color_to_config(note, value):
@@ -97,7 +118,6 @@ def open_color_picker(button, note):
     button.configure(fg_color=color)
     color = ImageColor.getcolor(color, "RGB")
     write_color_to_config(note, color)
-root = ctk.CTk()
 
 def read_color_in_config(category):
     print(config.get(category, f'r{customnumbervalue}'),config.get(category, f'g{customnumbervalue}'),config.get(category, f'b{customnumbervalue}'))
@@ -136,14 +156,27 @@ def optionmenu_callback(choice):
     print(r, g, b)
     return (color)
 
+##writing COM PORT to config. retries connecting when com port is altered
+def write_port_to_config(choice):
+    # choice is the selected COM port from the dropdown
+    config.set("Options", "COM Port", choice)
+    with open("config.ini", "w") as configfile:
+        config.write(configfile)
+        SpinLED.serial_port = f"{choice}"
+        SpinLED.update_serial = True
+    print(f"Stored COM port: {choice}")
 
+ports = [port.device for port in serial.tools.list_ports.comports()]
+port_dropdown = ctk.CTkOptionMenu(root, 
+    values=ports,
+    command=write_port_to_config)
+port_dropdown.grid(column = 2, row = 0, pady=20, padx = 20)
 
-
-
+##
 combobox = customtkinter.CTkOptionMenu(master=root,
                                         values=["Custom 1", "Custom 2", "Custom 3", "Custom 4", "Custom 5"],
                                         command=optionmenu_callback)
-combobox.grid(pady = 20, padx = 20)
+combobox.grid(row = 0, pady = 20, padx = 20)
 
 ##NOTES COLORS
 buttons = {}  # Dictionary to store all buttons by label
@@ -195,7 +228,7 @@ beat_button = ctk.CTkButton(
 )
 beat_button.grid(row = 12, pady = 20, padx = 20)
 buttons['Beat'] = beat_button
-##
+
 
 def storevalue(category, spot, value):
     config.set(category, spot, str(value))
@@ -216,7 +249,7 @@ brightmod_slider = ctk.CTkSlider(
     variable=brightmod,
     command=lambda value: (storevalue('Other Effects', 'brightness modifier', value), (update_slider("Brightness Modifier", value))),
     width=200)
-brightmod_slider.grid(column=1, row = 1, columnspan=len(default_categories), sticky=N)
+brightmod_slider.grid(column=1, row = 1, sticky=N)
 
 brightmod_value_label = ctk.CTkLabel(
     root, text = f"brightness modifier: {config.get('Other Effects', 'brightness modifier')}")
@@ -306,6 +339,58 @@ delay_value_label = ctk.CTkLabel(
     root, text = f"Delay: {config.get('Other Effects', 'Delay')}")
 delay_value_label.grid(column=1, row=12, sticky=SW)
 
+
+
+#everything below is for strip length value field
+
+def on_enter(event):
+    value = strip_length_value.get()
+    if value.isdigit(): 
+        storevalue("Options", "Led Strip Length", int(value))
+        update_slider("Led Strip Length", value)
+    else:
+        print("⚠️ Invalid input: please enter a number")
+
+strip_length_value = ctk.CTkEntry(
+    master=root)
+strip_length_value.grid(column=2, row=2, sticky=N)
+
+strip_length_value.bind("<Return>", on_enter)
+
+strip_length_value_label = ctk.CTkLabel(
+    root, text = f"LED Strip Length: {config.get('Options', 'Led Strip Length')}")
+strip_length_value_label.grid(column=2, row=1, sticky=SW)
+
+
+connection_status_var = ctk.StringVar()
+connection_status_var.set(f"Connection Status: {SpinLED.server_status}")
+
+port_status_var = ctk.StringVar()
+port_status_var.set(f"Port Status: {SpinLED.port_status}")
+
+def update_connection_status():
+    connection_status_var.set(f"Connection Status: {SpinLED.server_status}")
+    print(SpinLED.server_status)
+    update_port_status() #making 2 seperate functions with wait times leads to one not running. nesting it in this fucntion fixes that
+    root.after(500, update_connection_status)  # check every 0.5s
+
+def update_port_status():
+    port_status_var.set(f"Port Status: {SpinLED.port_status}")
+    print(SpinLED.port_status)
+
+update_connection_status()
+
+connection_status_value_label = ctk.CTkLabel(
+    root, textvariable=connection_status_var)
+connection_status_value_label.grid(column=2, row=3, sticky=W, columnspan=3)
+
+
+
+port_status_value_label = ctk.CTkLabel(
+    root, textvariable=port_status_var)
+port_status_value_label.grid(column=2, row=4, sticky=W, columnspan=3)
+
+
 value_labels = {
     "Brightness Modifier": brightmod_value_label,
     "Tap Speed": tap_speed_value_label,
@@ -313,10 +398,9 @@ value_labels = {
     'Beat Boost': beat_boost_value_label,
     'Spin Animation Speed': spin_animation_speed_value_label,
     'Max Brightness': max_brightness_value_label,
-    'Delay': delay_value_label
+    'Delay': delay_value_label,
+    'Led Strip Length': strip_length_value_label
 }
-
-
 
 
 optionmenu_callback(1)

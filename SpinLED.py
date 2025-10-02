@@ -47,6 +47,13 @@ left_spin_color = (left_spin_color[0]*brightfactor, left_spin_color[1]*brightfac
 right_spin_color = (right_spin_color[0]*brightfactor, right_spin_color[1]*brightfactor, right_spin_color[2]*brightfactor)   
 
 #initializing values
+update_serial = False ##used so when user inputs another com port the connection is killed and remade
+last_sent_time = time.time()
+y_values = 0
+coordinates = 0
+effects_to_remove = []
+server_status = "string"
+port_status = "string"
 previous_colors = [(0, 0, 0)] * strip_length 
 overlay_colors = [(0, 0, 0)] * strip_length  
 livetime = time.time
@@ -242,25 +249,43 @@ listener.start()
 
 
 def port_connect():
-    global data, firstnotes
+    global data, firstnotes, server_status
     host = '127.0.0.1'  # Same as C# server
     port = 8008        # Same port as C# server
-
-    # Create a socket and connect to the server
-    #print("attempgin connection")
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #print("attempgin connection 2")
-    client_socket.connect((host, port))
-
-    #print("Connected to C# server.")
-    #try:
+    server_connected = False
     while True:
-            # Receive data
-        data = client_socket.recv(1024).decode('utf-8')
-        print(f"Received: {data}")
-        current_time = time.time()
-        current_time = str(current_time)
-        firstnotes.append(data + f"time {current_time}")
+        try:
+            # Create a socket and connect to the server
+            #print("attempgin connection")
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            
+            #print("attempgin connection 2")
+            client_socket.connect((host, port))
+            server_status = f"Connected on port {port} through local ip {host}!"
+            server_connected = True
+
+            #print("Connected to C# server.")
+            #try:
+            break
+        except ConnectionRefusedError:
+            print("No server found. Retrying Connection")
+            server_status = "No server found. Retrying Connection"
+            server_connected = False
+            time.sleep(1)
+        except Exception as e:
+            print(f"Unexpected error: {e}. Retrying Connection")
+            server_status = f"Unexpected error: {e}. Retrying Connection"
+            server_connected = False
+            time.sleep(1)
+    while server_connected:
+        try:
+            data = client_socket.recv(1024).decode('utf-8')
+            current_time = str(time.time())
+            firstnotes.append(data + f" time {current_time}")
+        except ConnectionResetError:
+            server_status = ("Server disconnected.")
+            server_connected = False
+            break
 
 def delaysend():
     global data, delay, firstnotes
@@ -669,24 +694,30 @@ def ease_out(spinstart, strip_length, t):
         return value
 
 
+def send_led_strip_length_update(num_leds):
+    global ser
+    # Send 2 bytes for the LED count (little-endian)
+    ser.write(bytearray([0xFF, strip_length & 0xFF, (strip_length >> 8) & 0xFF]))
+    time.sleep(0.05)  # small delay to let Arduino process
 
 def send_colors(colors, ser):
     #try:
         with overlay_lock:  # Ensure exclusive access to the serial port
-            # Send the sync frame first
-            ser.write(sync_frame)
-            
-            # Send the LED data
-            data = bytearray(np.clip(np.array(colors), 0, max_brightness).astype(np.uint8).flatten()[:(strip_length * 3)])
+            try:
+                # Send the sync frame first
+                ser.write(sync_frame)
+                
+                # Send the LED data
+                data = bytearray(np.clip(np.array(colors), 0, max_brightness).astype(np.uint8).flatten()[:(strip_length * 3)])
 
-            ser.write(data)
-            
-            #print(f"Sync frame sent: {len(sync_frame)} bytes, LED data sent: {len(data)} bytes")
-    #except Exception as e:
-        #print(f"Error sending data: {e}")
+                ser.write(data)
+                
+                #print(f"Sync frame sent: {len(sync_frame)} bytes, LED data sent: {len(data)} bytes")
+            except Exception as e:
+                print(f"Error sending data: {e}")
 
 def update_effects(): 
-    global active_effects, effects_to_remove, overlay_colors, overlay_lock, tempb, tempr, tapsizemodifier, strip_length, match_size, tap_dur ,brightmod, temp_hold_blue_color,temp_hold_red_color, blue_match, red_match, spinning_l,tap_speed, spinning_r, loop, m , q, u, n, t, s, d, e, f, v, osc_freq, effects_to_remove, colors, spinright, spinleft, previous_colors, s_down, scratch, blue_match_timer, red_match_timer, current_value, x_values, y_values, coordinates, holdstart
+    global active_effects, effects_to_remove, overlay_colors, overlay_lock, tempb, tempr, tapsizemodifier, strip_length, match_size, tap_dur ,brightmod, temp_hold_blue_color,temp_hold_red_color, blue_match, red_match, spinning_l,tap_speed, spinning_r, loop, m , q, u, n, t, s, d, e, f, v, osc_freq, effects_to_remove, colors, spinright, spinleft, previous_colors, s_down, scratch, blue_match_timer, red_match_timer, current_value, x_values, y_values, coordinates, holdstart, y_values, coordinates, effects_to_remove, previous_colors
     active_effects.sort(key=lambda effect: effect["effect_id"])
     current_time = time.time()
     blue_match = False
@@ -826,14 +857,14 @@ def update_effects():
 
             if effect["effect_id"] == 3:  # BLUE TAP
                 #made inverse mechanic that starts at 1 when fade out is trigger and ends at zero. wait
-                fade_out_duration = (tap_speed / 5)  # the same duration as your condition
+                fade_out_duration = (tap_speed / 5) / 1/2  # the same duration as your condition
                 #logic for sine wave 
                 osc_freq = effect["effect_var"]
                 effect["effect_var"] = effect["effect_var"] / tap_speed
                 x_values = np.arange(-tap_size, tap_size, 1) #size of tap
                 y_values = [oscillating_parabola(x, osc_damp, osc_freq) for x in x_values]
                 coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
-                if current_time - effect["start_time"] <= (tap_speed / 5):
+                if current_time - effect["start_time"] <= ((tap_speed / 5) * 1/2):
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         
                         #getting old colors
@@ -852,7 +883,8 @@ def update_effects():
                 elif current_time - effect["start_time"] <= (tap_speed / 5) * 2:
                     inverse = elapsed_time - fade_out_duration
                     inverse = max(0.0, 1.0 - (inverse / fade_out_duration))
-                    print(inverse)
+                    factor = -1/2 * (math.cos(inverse * math.pi)) + 1/2
+                    print(factor)
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         #getting old colors
                         x, y, z = colors[i][0], colors[i][1], colors [i][2]
@@ -861,9 +893,9 @@ def update_effects():
                         brightness = get_y_coords_for_index(iterate)
                         #logic for fadeout effect
                         r, g, b = [int(c * brightness / 255) for c in blue_tap]
-                        r = max(x, x +(r ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
-                        g = max(y, y +(g ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
-                        b = max(z, z +(b ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        r = max(x, x +(r ** factor - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
+                        g = max(y, y +(g ** factor - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        b = max(z, z +(b ** factor - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         #send colors to array
                         colors[i] = (r, g, b)
 
@@ -872,15 +904,15 @@ def update_effects():
                     effects_to_remove.append(effect)
 
             if effect["effect_id"] == 4:  # Red TAP
-                inverse = max((tap_dur / 1) - elapsed_time, 0.001) # timer
-
+                #made inverse mechanic that starts at 1 when fade out is trigger and ends at zero. wait
+                fade_out_duration = (tap_speed / 5) / 1/2  # the same duration as your condition
                 #logic for sine wave 
                 osc_freq = effect["effect_var"]
-                effect["effect_var"] = effect["effect_var"] / 2
+                effect["effect_var"] = effect["effect_var"] / tap_speed
                 x_values = np.arange(-tap_size, tap_size, 1) #size of tap
                 y_values = [oscillating_parabola(x, osc_damp, osc_freq) for x in x_values]
                 coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
-                if current_time - effect["start_time"] <= (tap_speed / 50):
+                if current_time - effect["start_time"] <= ((tap_speed / 5) * 1/2):
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         
                         #getting old colors
@@ -896,7 +928,11 @@ def update_effects():
                         b = max(z, z +(b ** 1 - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         
                         colors[i] = (r, g, b)
-                elif current_time - effect["start_time"] <= tap_dur:
+                elif current_time - effect["start_time"] <= (tap_speed / 5) * 2:
+                    inverse = elapsed_time - fade_out_duration
+                    inverse = max(0.0, 1.0 - (inverse / fade_out_duration))
+                    factor = -1/2 * (math.cos(inverse * math.pi)) + 1/2
+                    print(factor)
                     for i in range(max(0, start_index - tap_size), min(strip_length, start_index + tap_size)):
                         #getting old colors
                         x, y, z = colors[i][0], colors[i][1], colors [i][2]
@@ -905,15 +941,14 @@ def update_effects():
                         brightness = get_y_coords_for_index(iterate)
                         #logic for fadeout effect
                         r, g, b = [int(c * brightness / 255) for c in red_tap]
-                        r = max(x, x +(r ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
-                        g = max(y, y +(g ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
-                        b = max(z, z +(b ** inverse - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        r = max(x, x +(r ** factor - abs((i - start_index) / tapsizemodifier))/ brightmod) #the number controls the size of the tap. lower == bigger
+                        g = max(y, y +(g ** factor - abs((i - start_index) / tapsizemodifier))/ brightmod)
+                        b = max(z, z +(b ** factor - abs((i - start_index) / tapsizemodifier))/ brightmod)
                         #send colors to array
                         colors[i] = (r, g, b)
 
-                        osc_freq = 40 # resets freq for next tap
-                
-                if current_time - effect["start_time"] > tap_dur:
+                elif current_time - effect["start_time"] <= (tap_speed / 5) * 3:
+                    print("removed")
                     effects_to_remove.append(effect)
             
             if effect["effect_id"] == 8:  # Blue Hold
@@ -1131,50 +1166,69 @@ def mouse_light_effect(start_index, effect_id):
         "effect_id": effect_id
     })
 
-# Open the serial connection
-with serial.Serial(serial_port, baud_rate, timeout=1) as ser:
-    #last_sent_time = time.time()
-    t1 = threading.Thread(None, port_connect)
-    t1.start()
-    
-    while True:
-        last_sent_time = time.time()
-        colors = [[0,0,0] for _ in range(strip_length)]
-        # Measure start time
-        #start_time = time.time()
-        #if data != data_prev:
 
-        #for tap effect
-        x_values = np.arange(-tap_size, tap_size, 1) #size of tap
-        y_values = [oscillating_parabola(x, osc_damp, osc_freq) for x in x_values]
-        coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
+def start_main_loop(): # Open the serial connection
+    global y_values, coordinates, effects_to_remove, previous_colors, update_serial, colors, port_status, ser
+    with serial.Serial(serial_port, baud_rate, timeout=1) as ser:
+        #last_sent_time = time.time()
+        t1 = threading.Thread(None, port_connect)
+        t1.start()
+        print("fag")
+        while True:
+            if update_serial:
+                try:
+                    ser.close()
+                    ser = serial.Serial(serial_port, baud_rate, timeout=1)
+                    port_status = f"Serial port {serial_port} connected!"
+                    update_serial = False
+                except serial.SerialException as e:
+                    port_status = f"failed to communicate with port {serial_port} becasue: {e}"
+                    time.sleep(1)
+            else:
+                if not t1.is_alive():
+                    t1 = threading.Thread(None, port_connect)
+                    t1.start()
+                    print("restarting t1")
+                last_sent_time = time.time()
+                colors = [[0,0,0] for _ in range(strip_length)]
+                # Measure start time
+                #start_time = time.time()
+                #if data != data_prev:
 
-        effects_to_remove = [] # reset effects to remove
+                #for tap effect
+                x_values = np.arange(-tap_size, tap_size, 1) #size of tap
+                y_values = [oscillating_parabola(x, osc_damp, osc_freq) for x in x_values]
+                coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
 
-        
-        delaysend()
-        on_match()
-        update_colors()
-        spin_start()
-        tap_start()
-        on_scratch()
-        on_beat()
-        on_hold()
-        beat_end()
-        on_release()
-        on_sectioncontinuationorend()
-        on_continue()
-        previous_colors = colors
-        update_effects()
-        beats()
-        send_colors(colors, ser)
-        #time.sleep(0.1)
-        # print(f"removed effects{effects_to_remove}")
-        
-        ##print(smoothed_colors[:2])
+                effects_to_remove = [] # reset effects to remove
 
-        # Measure execution time
-        # execution_time = time.time() - start_time
-        # #print(f"Loop executed in {execution_time:.6f} seconds")
-        # execution_time = timeit.timeit("get_screen_colors()", globals=globals(), number=100)
-        # #print(f"on_spin executed in {execution_time / 100:.6f} seconds per run (average)")
+                
+                delaysend()
+                on_match()
+                update_colors()
+                spin_start()
+                tap_start()
+                on_scratch()
+                on_beat()
+                on_hold()
+                beat_end()
+                on_release()
+                on_sectioncontinuationorend()
+                on_continue()
+                previous_colors = colors
+                update_effects()
+                beats()
+                send_colors(colors, ser)
+
+
+
+            #time.sleep(0.1)
+            # print(f"removed effects{effects_to_remove}")
+            
+            ##print(smoothed_colors[:2])
+
+            # Measure execution time
+            # execution_time = time.time() - start_time
+            # #print(f"Loop executed in {execution_time:.6f} seconds")
+            # execution_time = timeit.timeit("get_screen_colors()", globals=globals(), number=100)
+            # #print(f"on_spin executed in {execution_time / 100:.6f} seconds per run (average)")
