@@ -3,6 +3,7 @@ import configparser
 import customtkinter
 import customtkinter as ctk
 from CTkColorPicker import *
+import CTkColorPicker.ctk_color_picker
 from customtkinter import CTk, CTkOptionMenu, CTkLabel
 from PIL import ImageColor
 import re
@@ -30,11 +31,7 @@ default_categories = ['Red Tap', 'Blue Tap', 'Left Spin', 'Right Spin', 'Scratch
 default_rgb = {'R1': '100', 'G1': '100', 'B1': '100', 'R2': '100', 'G2': '100', 'B2': '100', 'R3': '100', 'G3': '100', 'B3': '100', 'R4': '100', 'G4': '100', 'B4': '100', 'R5': '100', 'G5': '100', 'B5': '100'}
 
 
-#we start the main loop as a thread here. this allows the user to simply open this GUI and the program will run alongside it
-threading.Thread(
-    target=SpinLED.start_main_loop,
-    daemon=True
-).start()
+
 
 customnumbervalue = 1
 
@@ -56,8 +53,6 @@ if 'Tap Size Modifier' not in config['Other Effects']:
     config['Other Effects']['Tap Size Modifier'] = '1'
 if 'Tap Speed' not in config['Other Effects']:
     config['Other Effects']['Tap Speed'] = '2'
-if 'Brightness Modifier' not in config['Other Effects']:
-    config['Other Effects']['Brightness Modifier'] = '3'
 if 'Delay' not in config['Other Effects']:
     config['Other Effects']['Delay'] = '0'
 if 'Spin Animation Speed' not in config['Other Effects']:
@@ -71,14 +66,25 @@ if 'Led Strip Length' not in config['Options']:
     config['Options']['Led Strip Length'] = '30'
 if 'COM Port' not in config['Options']:
     config['Options']['COM Port'] = '1'
+if 'Baud Rate' not in config['Options']:
+    config['Options']['Baud Rate'] = '576000'
 
 with open('config.ini', 'w') as configfile:
     config.write(configfile)
-##
+
+#initializing important variables on startup
+SpinLED.strip_length = int(config.get('Options', 'Led Strip Length'))
+SpinLED.baud_rate = int(config.get('Options', 'Baud Rate'))
+#we start the main loop as a thread here. this allows the user to simply open this GUI and the program will run alongside it
+
+threading.Thread(
+    target=SpinLED.start_main_loop,
+    daemon=True
+).start()
 
 
 def get_config_value(section, key, default='100'):
-    return float(config.get(section, key, fallback=default))
+    return int(config.get(section, key, fallback=default))
 
 
 rgbs = {
@@ -166,6 +172,19 @@ def write_port_to_config(choice):
         SpinLED.update_serial = True
     print(f"Stored COM port: {choice}")
 
+def update_beat_color_switch():
+    value = beat_color_switch_var.get()
+    SpinLED.beat_color_bool
+    config.set("Options", "Beat Color", str(value))
+    with open("config.ini", "w") as configfile:
+        config.write(configfile)
+
+beat_color_switch_var = customtkinter.BooleanVar(value=True)
+
+beat_color_switch = customtkinter.CTkSwitch(master=root,
+    text="Use Custom Beat Color?", variable=beat_color_switch_var, command=update_beat_color_switch, onvalue=True, offvalue=False)
+beat_color_switch.grid(column = 1, row = 0) 
+
 ports = [port.device for port in serial.tools.list_ports.comports()]
 port_dropdown = ctk.CTkOptionMenu(root, 
     values=ports,
@@ -231,6 +250,7 @@ buttons['Beat'] = beat_button
 
 
 def storevalue(category, spot, value):
+    value = int(value)
     config.set(category, spot, str(value))
     with open('config.ini', 'w') as configfile:
         config.write(configfile)
@@ -238,23 +258,8 @@ def storevalue(category, spot, value):
 
 
 def update_slider(name, value):
-    value_labels[name].configure(text=f"{name}: {float(value):.1f}")
-    storevalue('Other Effects', f'{name}', value)
-
-
-brightmod_slider = ctk.CTkSlider(
-    master=root,
-    from_=1,
-    to=10,
-    variable=brightmod,
-    command=lambda value: (storevalue('Other Effects', 'brightness modifier', value), (update_slider("Brightness Modifier", value))),
-    width=200)
-brightmod_slider.grid(column=1, row = 1, sticky=N)
-
-brightmod_value_label = ctk.CTkLabel(
-    root, text = f"brightness modifier: {config.get('Other Effects', 'brightness modifier')}")
-brightmod_value_label.grid(column=1, row=0, sticky=SW)
-
+    value_labels[name].configure(text=f"{name}: {int(value)}")
+    storevalue('Other Effects', f'{name}', int(value))
 
 tap_speed_slider = ctk.CTkSlider(
     master=root,
@@ -287,14 +292,14 @@ tap_size_value_label.grid(column=1, row=4, sticky=SW)
 beat_boost_slider = ctk.CTkSlider(
     master=root,
     from_=1,
-    to=50,
+    to=255,
     variable=beat_boost,
     command=lambda value: (storevalue('Other Effects', 'Beat Boost', value), (update_slider("Beat Boost", value))),
     width=200)
 beat_boost_slider.grid(column=1, row = 7, sticky=N)
 
 beat_boost_value_label = ctk.CTkLabel(
-    root, text = f"Beat Boost: {config.get('Other Effects', 'Beat Boost')}")
+    root, text = f"Max Beat Brightness: {config.get('Other Effects', 'Beat Boost')}")
 beat_boost_value_label.grid(column=1, row=6, sticky=SW)
 
 
@@ -353,13 +358,26 @@ def on_enter(event):
 
 strip_length_value = ctk.CTkEntry(
     master=root)
-strip_length_value.grid(column=2, row=2, sticky=N)
+strip_length_value.grid(column=2, row=3, sticky=N)
 
 strip_length_value.bind("<Return>", on_enter)
 
 strip_length_value_label = ctk.CTkLabel(
     root, text = f"LED Strip Length: {config.get('Options', 'Led Strip Length')}")
-strip_length_value_label.grid(column=2, row=1, sticky=SW)
+strip_length_value_label.grid(column=2, row=2, sticky=S)
+
+
+baud_rate_value = ctk.CTkEntry(
+    master=root)
+baud_rate_value.grid(column=2, row=5, sticky=N)
+
+baud_rate_value.bind("<Return>", on_enter)
+
+baud_rate_value_label = ctk.CTkLabel(
+    root, text = f"Baud Rate: {config.get('Options', 'Baud Rate')}")
+baud_rate_value_label.grid(column=2, row=4, sticky=S)
+
+
 
 
 connection_status_var = ctk.StringVar()
@@ -382,17 +400,18 @@ update_connection_status()
 
 connection_status_value_label = ctk.CTkLabel(
     root, textvariable=connection_status_var)
-connection_status_value_label.grid(column=2, row=3, sticky=W, columnspan=3)
+connection_status_value_label.grid(column=2, row=8, sticky=W, columnspan=3)
 
-
+general_info_label = ctk.CTkLabel(
+    root, text = "Please restart program after changing LED Length, Baud Rate, or Data Pin!")
+general_info_label.grid(column=2, row=1, sticky=W, columnspan=3)
 
 port_status_value_label = ctk.CTkLabel(
     root, textvariable=port_status_var)
-port_status_value_label.grid(column=2, row=4, sticky=W, columnspan=3)
+port_status_value_label.grid(column=2, row=9, sticky=W, columnspan=3)
 
 
 value_labels = {
-    "Brightness Modifier": brightmod_value_label,
     "Tap Speed": tap_speed_value_label,
     "Tap Size Modifier": tap_size_value_label,
     'Beat Boost': beat_boost_value_label,

@@ -25,18 +25,18 @@ red_tap = (255, 0, 255) #RGB
 blue_tap = (100, 255, 50) #RGB
 left_spin_color = (100, 255, 50) #RGB
 right_spin_color = (255, 255, 200) #RGB
-beat_background = False #Legacy
-beat_boost = 20 #for beat_background only. tells how much to increase brightness on beat by. Also ignores maxbrightness
+beat_color_bool = "True"
+beat_boost = 20 #for only. tells how much to increase brightness on beat by. Also ignores maxbrightness
 saturation_boost = 2 #does this work?
-strip_length = 598 #how many LEDs are on the strip
+strip_length =  598 #how many LEDs are on the strip
 spin_animation_speed = 1 #how many pixels each frame jumps
 max_brightness = 100 #max brightness for everything on the strip
 dampening_factor = 0.9 #mm damp. this might not work
 tap_size = 299 #LEGACY. still controls some effects. do not make higher than striplength / 2
 tapsizemodifier = 1 #tap size
 tap_speed = 1 #how fast tap reaches full lenght
-match_size = 20
-brightmod = 5
+match_size = 50
+brightmod = (255/max_brightness)
 delay = 1
 
 
@@ -47,7 +47,7 @@ left_spin_color = (left_spin_color[0]*brightfactor, left_spin_color[1]*brightfac
 right_spin_color = (right_spin_color[0]*brightfactor, right_spin_color[1]*brightfactor, right_spin_color[2]*brightfactor)   
 
 #initializing values
-update_serial = False ##used so when user inputs another com port the connection is killed and remade
+update_serial = True ##used so when user inputs another com port the connection is killed and remade
 last_sent_time = time.time()
 y_values = 0
 coordinates = 0
@@ -110,7 +110,7 @@ scratch_max = (min(255, int((scratch_color[0] / 10) * 12)),
                min(255, int((scratch_color[2] / 10) * 12)))
 
 def update_colors():
-    global red_tap, blue_tap, left_spin_color, right_spin_color, scratch_color, beat_color, beat_boost, spin_animation_speed, max_brightness, tapsizemodifier, tap_speed, brightmod, delay
+    global red_tap, blue_tap, left_spin_color, right_spin_color, scratch_color, beat_color, beat_boost, spin_animation_speed, max_brightness, tapsizemodifier, tap_speed, brightmod, delay, beat_color_bool
     config.read('config.ini')
     customvalue = (int(config.get('Other Effects', 'Custom', fallback=1)))
     red_tap = (int(config.get('Red Tap', f'B{customvalue}', fallback=100)), int(config.get('Red Tap', f'G{customvalue}', fallback=100)), int(config.get('Red Tap', f'R{customvalue}', fallback=100)))
@@ -122,10 +122,11 @@ def update_colors():
     beat_boost = float(config.get('Other Effects', 'Beat Boost', fallback = 20))
     spin_animation_speed = float(config.get('Other Effects', 'Spin Animation Speed', fallback = 20)) / 20
     max_brightness = float(config.get('Other Effects', 'Max Brightness' , fallback = 200))
-    tapsizemodifier = float(config.get('Other Effects', 'Tap Size Modifier' , fallback = 1)) / 50
-    tap_speed = float(config.get('Other Effects', 'Tap Speed' , fallback = 50)) / 5
-    brightmod = float(config.get('Other Effects', 'Brightness Modifier' , fallback = 3)) 
+    tapsizemodifier = int(config.get('Other Effects', 'Tap Size Modifier' , fallback = 1)) / 50
+    tap_speed = float(config.get('Other Effects', 'Tap Speed' , fallback = 50))
+    tap_speed = max(1, abs(tap_speed - 100) / 5) #inverting tap speed here. 100 is the max tap_speed number. change when changing tap_speeds max
     delay = float(config.get('Other Effects', 'Delay' , fallback = 0)) / 8
+    beat_color_bool = (config.get('Options', 'beat color', fallback = "True"))
     if left_spin_color != prevleft:
         for i in range(0 , int(strip_length)): #checking for effect range (effect_var does not go over striplength here)
 
@@ -205,7 +206,6 @@ def on_press(key):
                 "effect_var": 1
                 })
             print("spin hit")
-            #print("Starting left spin")
             remove_note("SpinLeftStart")
             scratch = False
             loop = False #for ease out
@@ -216,8 +216,6 @@ def on_press(key):
                 "effect_id": 2,
                 "effect_var": 1
             })
-            #print("spin hit")
-            #print("Starting right spin")
             remove_note("SpinRightStart")
             scratch = False
             loop = False #for ease out
@@ -229,7 +227,6 @@ def on_press(key):
                 "effect_var": tap_size
             })
             print("hold hit")
-            #print("Starting right spin")
             remove_note("SpinRightStart")
             scratch = False
             loop = False #for ease out
@@ -256,16 +253,12 @@ def port_connect():
     while True:
         try:
             # Create a socket and connect to the server
-            #print("attempgin connection")
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             
-            #print("attempgin connection 2")
             client_socket.connect((host, port))
             server_status = f"Connected on port {port} through local ip {host}!"
             server_connected = True
 
-            #print("Connected to C# server.")
-            #try:
             break
         except ConnectionRefusedError:
             print("No server found. Retrying Connection")
@@ -299,8 +292,6 @@ def delaysend():
             print("note trigger")
 
 
-    #except KeyboardInterrupt:
-        #print("Disconnected.")
 
 def add_note(note):
     global notes
@@ -331,8 +322,6 @@ def on_beat():
                 print("bveathold!")
         start_time = livetime() + 0.5
         int(start_time)
-        ##print("Beat! Brightening all LEDs.")
-        #print("beat triggered")
         remove_note("DrumStart")
 
 def beat_end():
@@ -440,12 +429,10 @@ def on_release():
     global start_time
     if "IsDrum" in notes:
         start_time = time.time()
-        #print("Beat release")
 
 def on_scratch():
     global scratch
     if any("ScratchStart" in note for note in notes):
-        #print("scratch triggered")
         active_effects.append({
             "start_index": 0,
             "start_time": 0,
@@ -483,7 +470,6 @@ def on_match():
         for note in notes:
             if "Blue Match" in note:
                     match = re.search(r"Blue Match \((-?\d+)\)", note)
-                    #print("blue match triggered")
                     try:
                         index = (int(match.group(1)) + 4)
                         index = random.randint(index - match_rand, index + match_rand)
@@ -503,13 +489,11 @@ def on_match():
                     remove_note("Blue Match")
                     scratch = False
                     blue_match_timer = time.time()
-                    #print(f"blue match activated{note}")
     if any("Red Match" in note for note in notes):
         for note in notes:
             if "Red Match" in note:
                 var = 1
                 match = re.search(r"Red Match \((-?\d+)\)", note)
-                #print("red match triggered")
                 try:
                     index = (int(match.group(1)) + 4)
                     index = random.randint(index - match_rand, index + match_rand)
@@ -529,7 +513,6 @@ def on_match():
                 remove_note("Red Match")
                 scratch = False
                 red_match_timer = time.time()
-                #print(f"blue match activated{note}")
 
 
 
@@ -542,7 +525,6 @@ def spin_start():
             "effect_id": 1,
             "effect_var": ease_out(spinstart, strip_length, t)
             })
-        #print("Starting left spin")
         remove_note("SpinLeftStart")
         current_value = ease_out(spinstart, strip_length, t)
         start_spintime = time.time() #for ease out
@@ -553,7 +535,6 @@ def spin_start():
         for effect in active_effects:
             if effect["effect_id"] == 3 or effect["effect_id"] == 4:
                 effects_to_remove.append(effect)
-                #print(effect)
 
     if any("SpinRightStart" in note for note in notes):
         active_effects.append({
@@ -562,7 +543,6 @@ def spin_start():
             "effect_id": 2,
             "effect_var": ease_out(spinstart, strip_length, t)
         })
-        #print("Starting right spin")
         remove_note("SpinRightStart")
         current_value = ease_out(spinstart, strip_length, t)
         start_spintime = time.time() #for ease out
@@ -572,9 +552,8 @@ def spin_start():
         for effect in active_effects:
             if effect["effect_id"] == 3 or effect["effect_id"] == 4:
                 effects_to_remove.append(effect)
-                #print(effect)
 
-        return  # Exit the function as we've already triggered the action
+        return
 
 def tap_start():
     global active_effects, strip_length, scratch, osc_freq
@@ -596,12 +575,10 @@ def tap_start():
                 "effect_id": 3,
                 "effect_var": tap_speed #osc_freq
                 })
-            #print(note)
             scratch = False
     if any("Red Tap" in note for note in notes):
         for note in notes:
             if "Red Tap" in note:
-                # Calculate a unique start index for this effect
                 # Add the new effect with its start index and start time
                 match = re.search(r"Red Tap \((-?\d+)\)", note)
                 remove_note("Red Tap")
@@ -617,7 +594,6 @@ def tap_start():
                 "effect_id": 4,
                 "effect_var": tap_speed #osc_freq 
                 })
-            #print(note)
             scratch = False
 
 
@@ -633,9 +609,7 @@ def oscillating_parabola(x, osc_damp, osc_freq):
 def get_y_coords_for_index(i):
     # Ensure i is within the valid range
     if 0 <= i < len(coordinates):
-        #print(i)
-        x, y = coordinates[i]  # Get the (x, y) pair at index i
-        #print(x)
+        x, y = coordinates[i]  
         return y
     else:
         raise ValueError(f"i is out of range{i}")
@@ -644,21 +618,23 @@ def get_y_coords_for_index(i):
 
 
 def beats():
-    global colors, start_time
+    global colors, start_time, beat_color_bool, beat_color
     live = livetime()
     int(live)
     time_diff = max(start_time - live, 0)
-    if beat_background == True:
+    if beat_color_bool == "True":
         for i in range(strip_length):
             index = i
-            r, g, b = colors[i][2], colors[i][1], colors[i][0]
+            r, g, b = beat_color[2], beat_color[1], beat_color[0]
+            x, y ,z = colors[i][2], colors[i][1], colors[i][0]
+            
+            r = ((r / 255) * beat_boost)
+            g = ((g / 255) * beat_boost)
+            b = ((b / 255) * beat_boost)
+            r = min(max(int(x + r * time_diff), x), 255)
+            g = min(max(int(y + g * time_diff), y), 255)
+            b = min(max(int(z + b * time_diff), z), 255)
 
-            r = min(max(int(r, (time_diff*beat_boost), 0)))
-            g = min(max(int(g, (time_diff*beat_boost), 0)))
-            b = min(max(int(b, (time_diff*beat_boost), 0)))
-            r = r * (255 / beat_boost)
-            g = g * (255 / beat_boost)
-            b = b * (255 / beat_boost)
             colors[index] = (r, g, b)
     elif beathold == True:
 
@@ -693,13 +669,6 @@ def ease_out(spinstart, strip_length, t):
         #print(value)
         return value
 
-
-def send_led_strip_length_update(num_leds):
-    global ser
-    # Send 2 bytes for the LED count (little-endian)
-    ser.write(bytearray([0xFF, strip_length & 0xFF, (strip_length >> 8) & 0xFF]))
-    time.sleep(0.05)  # small delay to let Arduino process
-
 def send_colors(colors, ser):
     #try:
         with overlay_lock:  # Ensure exclusive access to the serial port
@@ -718,6 +687,7 @@ def send_colors(colors, ser):
 
 def update_effects(): 
     global active_effects, effects_to_remove, overlay_colors, overlay_lock, tempb, tempr, tapsizemodifier, strip_length, match_size, tap_dur ,brightmod, temp_hold_blue_color,temp_hold_red_color, blue_match, red_match, spinning_l,tap_speed, spinning_r, loop, m , q, u, n, t, s, d, e, f, v, osc_freq, effects_to_remove, colors, spinright, spinleft, previous_colors, s_down, scratch, blue_match_timer, red_match_timer, current_value, x_values, y_values, coordinates, holdstart, y_values, coordinates, effects_to_remove, previous_colors
+    brightmod = (255/max( 1, max_brightness))
     active_effects.sort(key=lambda effect: effect["effect_id"])
     current_time = time.time()
     blue_match = False
@@ -814,35 +784,36 @@ def update_effects():
                                 
 
             if effect["effect_id"] == 5: #blue match
-                if effect["start_time"] - current_time + 2 > 0:
-                    for i in range(effect["start_index"] - match_size, effect["start_index"] + match_size): #10 is size of match. this and other 10 to control size 
-
+                size_mod = int(match_size * tapsizemodifier)
+                print(size_mod)
+                if effect["start_time"] - current_time + (tap_speed / 5) > 0:
+                    for i in range(effect["start_index"] - size_mod , effect["start_index"] + size_mod ): #10 is size of match. this and other 10 to control size 
                         x, y, z = colors[i][0], colors[i][1], colors[i][2]
                         r, g, b = blue_tap
 
-                        wawa =  (effect["start_time"] - current_time) + 2
+                        wawa =  (effect["start_time"] - current_time) + (tap_speed / 5)
 
-                        bright = abs(abs(effect["start_index"] - i) / match_size -1) / brightmod
+                        bright = abs(abs(effect["start_index"] - i) / size_mod -1) / brightmod
                         r = max(x, wawa * (x + (r * (bright ** 2))))
                         g = max(y, wawa * (y + (g * (bright ** 2))))
                         b = max(z, wawa * (z + (b * (bright ** 2))))
 
 
                         colors[i] = (r, g, b)
-                if effect["start_time"] - current_time + 2 <= 0:
+                if effect["start_time"] - (tap_speed / 5) <= 0:
                         effects_to_remove.append(effect)
 
 
             if effect["effect_id"] == 6: #red match
-                if effect["start_time"] - current_time + 2 > 0:
-                    for i in range(effect["start_index"] - match_size, effect["start_index"] + match_size): #10 is size of match. this and other 10 to control size 
-
+                size_mod = int(match_size * tapsizemodifier)
+                if effect["start_time"] - current_time + (tap_speed / 5) > 0:
+                    for i in range(effect["start_index"] - size_mod, effect["start_index"] + size_mod): #10 is size of match. this and other 10 to control size 
                         x, y, z = colors[i][0], colors[i][1], colors[i][2]
                         r, g, b = red_tap
 
-                        wawa =  (effect["start_time"] - current_time) + 2
+                        wawa =  (effect["start_time"] - current_time) + (tap_speed / 5)
 
-                        bright = abs(abs(effect["start_index"] - i) / match_size -1) / brightmod #change 10 here to control size of match. the number at the end is diving brightness (ie 3 / maxbrightness) 
+                        bright = abs(abs(effect["start_index"] - i) / size_mod -1) / brightmod #change 10 here to control size of match. the number at the end is diving brightness (ie 3 / maxbrightness) 
                         
                         r = max(x, wawa * (x + (r * (bright ** 2))))
                         g = max(y, wawa * (y + (g * (bright ** 2))))
@@ -850,7 +821,7 @@ def update_effects():
 
 
                         colors[i] = (r, g, b)
-                if effect["start_time"] - current_time + 2 <= 0:
+                if effect["start_time"] - current_time + (tap_speed / 5) <= 0:
                         
                         effects_to_remove.append(effect)
 
@@ -1177,6 +1148,7 @@ def start_main_loop(): # Open the serial connection
         while True:
             if update_serial:
                 try:
+                    print("port status changed")
                     ser.close()
                     ser = serial.Serial(serial_port, baud_rate, timeout=1)
                     port_status = f"Serial port {serial_port} connected!"
@@ -1201,7 +1173,6 @@ def start_main_loop(): # Open the serial connection
                 coordinates = [(int(x), int(oscillating_parabola(x, osc_damp, osc_freq))+ 127) for x in x_values]
 
                 effects_to_remove = [] # reset effects to remove
-
                 
                 delaysend()
                 on_match()
