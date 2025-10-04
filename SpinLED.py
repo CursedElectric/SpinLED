@@ -50,13 +50,13 @@ if 'Spin Animation Speed' not in config['Other Effects']:
 if 'Max Brightness' not in config['Other Effects']:
     config['Other Effects']['Max Brightness'] = '50'
 if 'Tap Size Modifier' not in config['Other Effects']:
-    config['Other Effects']['Tap Size Modifier'] = '1'
+    config['Other Effects']['Tap Size Modifier'] = '20'
 if 'Tap Speed' not in config['Other Effects']:
-    config['Other Effects']['Tap Speed'] = '2'
+    config['Other Effects']['Tap Speed'] = '80'
 if 'Delay' not in config['Other Effects']:
     config['Other Effects']['Delay'] = '0'
 if 'Spin Animation Speed' not in config['Other Effects']:
-    config['Other Effects']['Spin Animation Speed'] = '50'
+    config['Other Effects']['Spin Animation Speed'] = '80'
 if 'Led Strip Length' not in config['Other Effects']:
     config['Other Effects']['Led Strip Length'] = '30'
 
@@ -470,4 +470,5 @@ value_labels = {
 
 
 optionmenu_callback(1)
+
 root.mainloop()
