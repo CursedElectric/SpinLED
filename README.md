@@ -5,8 +5,8 @@ A Spin Rhythm XD mod for taking note inputs in game and displaying them on LEDs 
 ## Setting up:
 ### Hardware
 An arduino or arduino equivalent (ESP, etc) connected to a strip of individually addressable LEDs.
-If you are interested in setting up an arduino powered LED strip for the first time, i reccomend this guide for starting out!
-
+If you are interested in setting up an arduino powered LED strip for the first time, i reccomend this guide for starting out!</br>
+(https://lastminuteengineers.com/ws2812b-arduino-tutorial/)
 
 I will also be posing a beginners comprehensive guide to setting up LEDs controlled by an arduino in the near future.
 
