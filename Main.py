@@ -507,8 +507,9 @@ def on_match():
             if "Blue Match" in note:
                     match = re.search(r"Blue Match \((-?\d+)\)", note)
                     try:
-                        index = (int(match.group(1)) + 4)
-                        index = random.randint(index - match_rand, index + match_rand)
+                        index = int((int(match.group(1)) + 4) * match_index)
+                        index = max(0, min(random.randint(index - match_rand, index + match_rand), strip_length))
+                        print(index)
                         for effect in active_effects:
                             if effect["start_index"] ==  index and effect["effect_id"] == 5 or effect["start_index"] == index and effect["effect_id"] == 6:
                                 var = effect["effect_var"] + 1
@@ -531,8 +532,8 @@ def on_match():
                 var = 1
                 match = re.search(r"Red Match \((-?\d+)\)", note)
                 try:
-                    index = (int(match.group(1)) + 4)
-                    index = random.randint(index - match_rand, index + match_rand)
+                    index = int((int(match.group(1)) + 4) * match_index)
+                    index = max(0, min(random.randint(index - match_rand, index + match_rand), strip_length))
                     for effect in active_effects:
                         if effect["start_index"] ==  index and effect["effect_id"] == 5 or effect["start_index"] == index and effect["effect_id"] == 6:
                             var = effect["effect_var"] + 1
@@ -604,7 +605,7 @@ def tap_start():
                 index = int(index)
             except:
                 index = 0
-            index = random.randint(index - 40, index + 40)
+            index = max(0, min(random.randint(index - int(match_rand / 2), index + int(match_rand / 2)), strip_length))
             active_effects.append({
                 "start_index": index,
                 "start_time": time.time(),
@@ -623,7 +624,7 @@ def tap_start():
                 index = int(index)
             except:
                 index = 0
-            index = random.randint(index - 40, index + 40)
+            index = max(0, min(random.randint(index - int(match_rand / 2), index + int(match_rand / 2)), strip_length))
             active_effects.append({
                 "start_index": index,
                 "start_time": time.time(),
@@ -823,7 +824,7 @@ def update_effects():
                 size_mod = int(match_size * tapsizemodifier)
                 ####print(size_mod)
                 if effect["start_time"] - current_time + (tap_speed / 5) > 0:
-                    for i in range(effect["start_index"] - size_mod , effect["start_index"] + size_mod ): #10 is size of match. this and other 10 to control size 
+                    for i in range(max(0, effect["start_index"] - size_mod), min(effect["start_index"] + size_mod, strip_length)): #10 is size of match. this and other 10 to control size 
                         x, y, z = colors[i][0], colors[i][1], colors[i][2]
                         r, g, b = blue_tap
 
@@ -843,7 +844,7 @@ def update_effects():
             if effect["effect_id"] == 6: #red match
                 size_mod = int(match_size * tapsizemodifier)
                 if effect["start_time"] - current_time + (tap_speed / 5) > 0:
-                    for i in range(effect["start_index"] - size_mod, effect["start_index"] + size_mod): #10 is size of match. this and other 10 to control size 
+                    for i in range(max(0, effect["start_index"] - size_mod), min(effect["start_index"] + size_mod, strip_length)): #10 is size of match. this and other 10 to control size 
                         x, y, z = colors[i][0], colors[i][1], colors[i][2]
                         r, g, b = red_tap
 
