@@ -1,0 +1,87 @@
+#include <FastLED.h>
+
+//
+//
+//THESE 3 VALUES ARE MODIFIABLE. PLEASE DONT TOUCH ANY OTHER VALUES
+#define NUM_LEDS 598 //The number of LED lights on your light strip. Be sure this number matches the amount in SpinLED.exe
+#define DATA_PIN 2 //The pin on your arduino that is sending the data to the LEDs
+#define BAUD_RATE 576000 //Baud rate. This is the highest I could push my board before glitchy visuals occured. If your lights are glitching try lowering this number AND CHANGE IT RESPECTIVELY IN SpinLED.exe
+//END MODIFIABLE VALUES
+//
+//
+
+CRGB leds[NUM_LEDS];
+
+// Define the sync frame (choose a unique sequence)
+const uint8_t SYNC_FRAME[] = {4, 3, 2, 1};
+const size_t SYNC_FRAME_SIZE = sizeof(SYNC_FRAME);
+
+void setup() {
+  // Initialize Serial communication
+  delay(500); // Allow time for initialization
+  Serial.begin(BAUD_RATE);
+  while (!Serial) {
+    ; // Wait for Serial to initialize (only necessary for certain boards like Leonardo)
+  }
+  
+  // Initialize the FastLED library
+  FastLED.addLeds<WS2812, DATA_PIN, GRB>(leds, NUM_LEDS);
+  FastLED.clear(); // Clear LEDs initially
+  FastLED.show();
+
+  // Debugging message
+  delay(500);
+  Serial.println("Serial connection initialized. Ready to receive data.");
+}
+void checkCrash() {
+    if (esp_reset_reason() != ESP_RST_POWERON) {
+        Serial.println("ESP32 Reset due to crash, restarting...");
+        delay(1000);
+        esp_restart(); // Force restart
+    }
+}
+
+void loop() {
+  static size_t receivedBytes = 0; // Bytes received so far
+  static size_t syncIndex = 0;    // Tracks progress in detecting the sync frame
+
+  // Handle Serial data
+  while (Serial.available() > 0) {
+    uint8_t byte = Serial.read();
+
+    // Check for the sync frame
+    if (syncIndex < SYNC_FRAME_SIZE) {
+      if (byte == SYNC_FRAME[syncIndex]) {
+        syncIndex++;
+        if (syncIndex == SYNC_FRAME_SIZE) {
+          // Sync frame fully detected
+          receivedBytes = 0; // Reset received data counter
+        }
+      } else {
+        syncIndex = 0; // Reset sync frame detection on mismatch
+      }
+      continue; // Skip further processing until sync frame is fully detected
+    }
+
+    // Process LED data after sync frame is detected
+    if (syncIndex == SYNC_FRAME_SIZE) {
+      // Reorder from RGB to GRB format
+      if (receivedBytes % 3 == 0) leds[receivedBytes / 3].r = byte; // Green first
+      if (receivedBytes % 3 == 1) leds[receivedBytes / 3].g = byte; // Red second
+      if (receivedBytes % 3 == 2) leds[receivedBytes / 3].b = byte; // Blue last
+
+      receivedBytes++;
+
+      // Check if we've received enough data for all LEDs
+      if (receivedBytes >= NUM_LEDS * 3) {
+        FastLED.show(); // Display the updated LED data
+        Serial.println("LED data displayed.");
+        
+        // Reset counters for the next frame
+        receivedBytes = 0;
+        syncIndex = 0; // Ready for the next sync frame
+        checkCrash();
+      }
+    }
+  }
+}
