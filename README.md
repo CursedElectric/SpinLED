@@ -1,6 +1,6 @@
 # SpinLED
 
-A Spin Rhythm XD mod for taking note inputs in game and displaying them on LEDs powered by an arduino. This program reads the notes of the songs chart you are currently playing and creates interesting visual effects to be displayed on an LED reel.
+A Spin Rhythm XD mod for taking note inputs in game and displaying them on LEDs powered by an arduino. This program reads the notes of the songs chart you are currently playing and creates interesting visual effects to be displayed on an LED reel. Here is a link to it in action as well (https://youtu.be/UTvkzPNsjZs)
 
 ## Setting up:
 ### Hardware
