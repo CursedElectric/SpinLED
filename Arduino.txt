@@ -1,8 +1,14 @@
 #include <FastLED.h>
 
-#define NUM_LEDS 598
-#define DATA_PIN 2
-#define BAUD_RATE 576000 // Set your desired baud rate
+//
+//
+//THESE 3 VALUES ARE MODIFIABLE. PLEASE DONT TOUCH ANY OTHER VALUES
+#define NUM_LEDS 598 //The number of LED lights on your light strip. Be sure this number matches the amount in SpinLED.exe
+#define DATA_PIN 2 //The pin on your arduino that is sending the data to the LEDs
+#define BAUD_RATE 576000 //Baud rate. This is the highest I could push my board before glitchy visuals occured. If your lights are glitching try lowering this number AND CHANGE IT RESPECTIVELY IN SpinLED.exe
+//END MODIFIABLE VALUES
+//
+//
 
 CRGB leds[NUM_LEDS];
 
