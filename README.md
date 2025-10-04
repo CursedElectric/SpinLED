@@ -9,11 +9,11 @@ If you are interested in setting up an arduino powered LED strip for the first t
 //i havent found a good guide yet
 
 ### Software
--SpinLED.exe
--SpinLED.dll
--BepInEx version 5.4.23.2 (x64 version) (https://github.com/BepInEx/BepInEx/releases) (called BepInEx_win_x64_5.4.23.2.zip)
--SpinCore.dll (https://github.com/Raoul1808/SpinCore)
--Arduino IDE (https://www.arduino.cc/en/software/)
+-SpinLED.exe <br/>
+-SpinLED.dll <br/>
+-BepInEx version 5.4.23.2 (x64 version) (https://github.com/BepInEx/BepInEx/releases) (called BepInEx_win_x64_5.4.23.2.zip) <br/>
+-SpinCore.dll (https://github.com/Raoul1808/SpinCore) <br/>
+-Arduino IDE (https://www.arduino.cc/en/software/) <br/>
 -USB to UART bridge driver (https://www.silabs.com/software-and-tools/usb-to-uart-bridge-vcp-drivers?tab=downloads) (You may or may not need this depending on which arduino you have. My ESP32 Board did)
 
 ## Installation Guide:
